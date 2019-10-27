@@ -175,6 +175,10 @@ impl<'tcx> InstanceDef<'tcx> {
         }
         tcx.codegen_fn_attrs(self.def_id()).requests_inline()
     }
+
+    pub fn requires_caller_location(&self, tcx: TyCtxt<'_>) -> bool {
+        tcx.codegen_fn_attrs(self.def_id()).flags.contains(CodegenFnAttrFlags::TRACK_CALLER)
+    }
 }
 
 impl<'tcx> fmt::Display for Instance<'tcx> {
@@ -313,23 +317,16 @@ impl<'tcx> Instance<'tcx> {
         substs: SubstsRef<'tcx>,
     ) -> Option<Instance<'tcx>> {
         debug!("resolve(def_id={:?}, substs={:?})", def_id, substs);
-        Instance::resolve(tcx, param_env, def_id, substs).map(|mut resolved| {
-            let has_track_caller = |def| tcx.codegen_fn_attrs(def).flags
-                .contains(CodegenFnAttrFlags::TRACK_CALLER);
-
-            match resolved.def {
-                InstanceDef::Item(def_id) if has_track_caller(def_id) => {
-                    debug!(" => fn pointer created for function with #[track_caller]");
-                    resolved.def = InstanceDef::ReifyShim(def_id);
+        Instance::resolve(tcx, param_env, def_id, substs).map(|resolved| {
+            if resolved.def.requires_caller_location(tcx) {
+                debug!(" => fn pointer created for function with #[track_caller]");
+                Instance {
+                    def: InstanceDef::ReifyShim(def_id),
+                    substs,
                 }
-                InstanceDef::Virtual(def_id, _) => {
-                    debug!(" => fn pointer created for virtual call");
-                    resolved.def = InstanceDef::ReifyShim(def_id);
-                }
-                _ => {}
+            } else {
+                resolved
             }
-
-            resolved
         })
     }
 

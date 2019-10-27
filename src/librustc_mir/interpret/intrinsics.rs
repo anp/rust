@@ -99,7 +99,8 @@ impl<'mir, 'tcx, M: Machine<'mir, 'tcx>> InterpCx<'mir, 'tcx, M> {
         match intrinsic_name {
             "caller_location" => {
                 let topmost = span.ctxt().outer_expn().expansion_cause().unwrap_or(span);
-                let caller = self.tcx.sess.source_map().lookup_char_pos(topmost.lo());
+                let span = self.find_closest_untracked_caller_location(topmost);
+                let caller = self.tcx.sess.source_map().lookup_char_pos(span.lo());
                 let location = self.alloc_caller_location(
                     Symbol::intern(&caller.file.name.to_string()),
                     caller.line as u32,
