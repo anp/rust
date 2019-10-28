@@ -75,6 +75,9 @@ pub struct FunctionCx<'a, 'tcx, Bx: BuilderMethods<'a, 'tcx>> {
     locals: IndexVec<mir::Local, LocalRef<'tcx, Bx::Value>>,
 
     per_local_var_debug_info: Option<IndexVec<mir::Local, Vec<debuginfo::VarDebugInfo<'tcx>>>>,
+
+    /// Caller location propagated if this function has `#[track_caller]`.
+    caller_location: Option<PlaceRef<'tcx, Bx::Value>>,
 }
 
 impl<'a, 'tcx, Bx: BuilderMethods<'a, 'tcx>> FunctionCx<'a, 'tcx, Bx> {
@@ -176,6 +179,7 @@ pub fn codegen_mir<'a, 'tcx, Bx: BuilderMethods<'a, 'tcx>>(
         locals: IndexVec::new(),
         debug_context,
         per_local_var_debug_info: debuginfo::per_local_var_debug_info(cx.tcx(), mir),
+        caller_location: None,
     };
 
     let memory_locals = analyze::non_ssa_locals(&fx);
