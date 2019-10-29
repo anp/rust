@@ -2499,11 +2499,11 @@ where
         + HasTyCtxt<'tcx>
         + HasParamEnv<'tcx>,
 {
-    fn of_fn_ptr(cx: &C, sig: ty::FnSig<'tcx>, extra_args: &[Ty<'tcx>]) -> Self;
+    fn of_fn_ptr(cx: &C, sig: ty::PolyFnSig<'tcx>, extra_args: &[Ty<'tcx>]) -> Self;
     fn of_instance(cx: &C, instance: ty::Instance<'tcx>, extra_args: &[Ty<'tcx>]) -> Self;
     fn new_internal(
         cx: &C,
-        sig: ty::FnSig<'tcx>,
+        sig: ty::PolyFnSig<'tcx>,
         extra_args: &[Ty<'tcx>],
         mk_arg_type: impl Fn(Ty<'tcx>, Option<usize>) -> ArgAbi<'tcx, Ty<'tcx>>,
     ) -> Self;
@@ -2518,15 +2518,12 @@ where
         + HasTyCtxt<'tcx>
         + HasParamEnv<'tcx>,
 {
-    fn of_fn_ptr(cx: &C, sig: ty::FnSig<'tcx>, extra_args: &[Ty<'tcx>]) -> Self {
+    fn of_fn_ptr(cx: &C, sig: ty::PolyFnSig<'tcx>, extra_args: &[Ty<'tcx>]) -> Self {
         call::FnAbi::new_internal(cx, sig, extra_args, |ty, _| ArgAbi::new(cx.layout_of(ty)))
     }
 
     fn of_instance(cx: &C, instance: ty::Instance<'tcx>, extra_args: &[Ty<'tcx>]) -> Self {
         let sig = instance.fn_sig(cx.tcx());
-        let sig = cx
-            .tcx()
-            .normalize_erasing_late_bound_regions(ty::ParamEnv::reveal_all(), &sig);
 
         call::FnAbi::new_internal(cx, sig, extra_args, |ty, arg_idx| {
             let mut layout = cx.layout_of(ty);
@@ -2584,11 +2581,15 @@ where
 
     fn new_internal(
         cx: &C,
-        sig: ty::FnSig<'tcx>,
+        sig: ty::PolyFnSig<'tcx>,
         extra_args: &[Ty<'tcx>],
         mk_arg_type: impl Fn(Ty<'tcx>, Option<usize>) -> ArgAbi<'tcx, Ty<'tcx>>,
     ) -> Self {
         debug!("FnAbi::new_internal({:?}, {:?})", sig, extra_args);
+
+        let sig = cx
+            .tcx()
+            .normalize_erasing_late_bound_regions(ty::ParamEnv::reveal_all(), &sig);
 
         use rustc_target::spec::abi::Abi::*;
         let conv = match cx.tcx().sess.target.target.adjust_abi(sig.abi) {
