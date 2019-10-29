@@ -77,7 +77,7 @@ pub fn get_fn(
             llfn
         }
     } else {
-        let fn_abi = FnAbi::of_instance(cx, instance);
+        let fn_abi = FnAbi::of_instance(cx, instance, &[]);
         let llfn = cx.declare_fn(&sym, &fn_abi);
         debug!("get_fn: not casting pointer!");
 
