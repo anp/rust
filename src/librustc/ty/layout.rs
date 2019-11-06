@@ -2505,6 +2505,7 @@ where
         cx: &C,
         sig: ty::PolyFnSig<'tcx>,
         extra_args: &[Ty<'tcx>],
+        caller_location: Option<Ty<'tcx>>,
         mk_arg_type: impl Fn(Ty<'tcx>, Option<usize>) -> ArgAbi<'tcx, Ty<'tcx>>,
     ) -> Self;
     fn adjust_for_abi(&mut self, cx: &C, abi: SpecAbi);
@@ -2519,13 +2520,19 @@ where
         + HasParamEnv<'tcx>,
 {
     fn of_fn_ptr(cx: &C, sig: ty::PolyFnSig<'tcx>, extra_args: &[Ty<'tcx>]) -> Self {
-        call::FnAbi::new_internal(cx, sig, extra_args, |ty, _| ArgAbi::new(cx.layout_of(ty)))
+        call::FnAbi::new_internal(cx, sig, extra_args, None, |ty, _| ArgAbi::new(cx.layout_of(ty)))
     }
 
     fn of_instance(cx: &C, instance: ty::Instance<'tcx>, extra_args: &[Ty<'tcx>]) -> Self {
         let sig = instance.fn_sig(cx.tcx());
 
-        call::FnAbi::new_internal(cx, sig, extra_args, |ty, arg_idx| {
+        let caller_location = if instance.def.requires_caller_location(cx.tcx()) {
+            Some(cx.tcx().caller_location_ty())
+        } else {
+            None
+        };
+
+        call::FnAbi::new_internal(cx, sig, extra_args, caller_location, |ty, arg_idx| {
             let mut layout = cx.layout_of(ty);
             // Don't pass the vtable, it's not an argument of the virtual fn.
             // Instead, pass just the data pointer, but give it the type `*const/mut dyn Trait`
@@ -2583,6 +2590,7 @@ where
         cx: &C,
         sig: ty::PolyFnSig<'tcx>,
         extra_args: &[Ty<'tcx>],
+        caller_location: Option<Ty<'tcx>>,
         mk_arg_type: impl Fn(Ty<'tcx>, Option<usize>) -> ArgAbi<'tcx, Ty<'tcx>>,
     ) -> Self {
         debug!("FnAbi::new_internal({:?}, {:?})", sig, extra_args);
@@ -2748,6 +2756,7 @@ where
                 .iter()
                 .cloned()
                 .chain(extra_args)
+                .chain(caller_location)
                 .enumerate()
                 .map(|(i, ty)| arg_of(ty, Some(i)))
                 .collect(),
