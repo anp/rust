@@ -431,9 +431,13 @@ fn arg_local_refs<'a, 'tcx, Bx: BuilderMethods<'a, 'tcx>>(
             bx.store_fn_arg(arg, &mut llarg_idx, tmp);
             LocalRef::Place(tmp)
         }
-    }).collect();
+    }).collect::<Vec<_>>();
 
     if fx.instance.def.requires_caller_location(bx.tcx()) {
+        assert_eq!(
+            fx.fn_abi.args.len(), args.len() + 1,
+            "#[track_caller] fn's must have 1 more argument in their ABI than in their MIR",
+        );
         let arg = &fx.fn_abi.args.last().unwrap();
         let place = PlaceRef::alloca(bx, arg.layout);
         bx.store_fn_arg(arg, &mut llarg_idx, place);
