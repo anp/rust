@@ -186,7 +186,7 @@ pub fn codegen_mir<'a, 'tcx, Bx: BuilderMethods<'a, 'tcx>>(
 
     // Allocate variable and temp allocas
     fx.locals = {
-        let args = arg_local_refs(&mut bx, &fx, &memory_locals);
+        let args = arg_local_refs(&mut bx, &mut fx, &memory_locals);
 
         let mut allocate_local = |local| {
             let decl = &mir.local_decls[local];
@@ -328,14 +328,14 @@ fn create_funclets<'a, 'tcx, Bx: BuilderMethods<'a, 'tcx>>(
 /// indirect.
 fn arg_local_refs<'a, 'tcx, Bx: BuilderMethods<'a, 'tcx>>(
     bx: &mut Bx,
-    fx: &FunctionCx<'a, 'tcx, Bx>,
+    fx: &mut FunctionCx<'a, 'tcx, Bx>,
     memory_locals: &BitSet<mir::Local>,
 ) -> Vec<LocalRef<'tcx, Bx::Value>> {
     let mir = fx.mir;
     let mut idx = 0;
     let mut llarg_idx = fx.fn_abi.ret.is_indirect() as usize;
 
-    mir.args_iter().enumerate().map(|(arg_index, local)| {
+    let args = mir.args_iter().enumerate().map(|(arg_index, local)| {
         let arg_decl = &mir.local_decls[local];
 
         if Some(local) == mir.spread_arg {
@@ -431,7 +431,16 @@ fn arg_local_refs<'a, 'tcx, Bx: BuilderMethods<'a, 'tcx>>(
             bx.store_fn_arg(arg, &mut llarg_idx, tmp);
             LocalRef::Place(tmp)
         }
-    }).collect()
+    }).collect();
+
+    if fx.instance.def.requires_caller_location(bx.tcx()) {
+        let arg = &fx.fn_abi.args.last().unwrap();
+        let place = PlaceRef::alloca(bx, arg.layout);
+        bx.store_fn_arg(arg, &mut llarg_idx, place);
+        fx.caller_location = Some(place);
+    }
+
+    args
 }
 
 mod analyze;
