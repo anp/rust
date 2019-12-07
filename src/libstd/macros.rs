@@ -4,6 +4,7 @@
 //! library. Each macro is available for use when linking against the standard
 //! library.
 
+#[cfg(bootstrap)]
 #[doc(include = "../libcore/macros/panic.md")]
 #[macro_export]
 #[stable(feature = "rust1", since = "1.0.0")]
@@ -21,6 +22,29 @@ macro_rules! panic {
     ($fmt:expr, $($arg:tt)+) => ({
         $crate::rt::begin_panic_fmt(&$crate::format_args!($fmt, $($arg)+),
                                     &($crate::file!(), $crate::line!(), $crate::column!()))
+    });
+}
+
+#[cfg(not(bootstrap))]
+#[doc(include = "../libcore/macros/panic.md")]
+#[macro_export]
+#[stable(feature = "rust1", since = "1.0.0")]
+#[allow_internal_unstable(libstd_sys_internals, track_caller)]
+macro_rules! panic {
+    () => ({
+        $crate::panic!("explicit panic")
+    });
+    ($msg:expr) => ({
+        $crate::rt::begin_panic($msg, $crate::panic::Location::caller())
+    });
+    ($msg:expr,) => ({
+        $crate::panic!($msg)
+    });
+    ($fmt:expr, $($arg:tt)+) => ({
+        $crate::rt::begin_panic_fmt(
+            &$crate::format_args!($fmt, $($arg)+),
+            $crate::panic::Location::caller(),
+        )
     });
 }
 

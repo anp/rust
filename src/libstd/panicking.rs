@@ -313,17 +313,29 @@ pub fn panicking() -> bool {
 // otherwise avoid inlining because of it is cold path.
 #[cfg_attr(not(feature="panic_immediate_abort"),inline(never))]
 #[cfg_attr(    feature="panic_immediate_abort" ,inline)]
-pub fn begin_panic_fmt(msg: &fmt::Arguments<'_>,
-                       file_line_col: &(&'static str, u32, u32)) -> ! {
+pub fn begin_panic_fmt(
+    msg: &fmt::Arguments<'_>,
+    #[cfg(bootstrap)]
+    &(file, line, col): &(&str, u32, u32),
+    #[cfg(not(bootstrap))]
+    location: &Location<'_>,
+) -> ! {
     if cfg!(feature = "panic_immediate_abort") {
         unsafe { intrinsics::abort() }
     }
 
     // Just package everything into a `PanicInfo` and continue like libcore panics.
-    let (file, line, col) = *file_line_col;
-    let location = Location::internal_constructor(file, line, col);
-    let info = PanicInfo::internal_constructor(Some(msg), &location);
-    begin_panic_handler(&info)
+    #[cfg(bootstrap)]
+    {
+        let location = Location::internal_constructor(file, line, col);
+        let info = PanicInfo::internal_constructor(Some(msg), &location);
+        begin_panic_handler(&info)
+    }
+    #[cfg(not(bootstrap))]
+    {
+        let info = PanicInfo::internal_constructor(Some(msg), location);
+        begin_panic_handler(&info)
+    }
 }
 
 /// Entry point of panics from the libcore crate (`panic_impl` lang item).
@@ -371,11 +383,7 @@ pub fn begin_panic_handler(info: &PanicInfo<'_>) -> ! {
 
     let loc = info.location().unwrap(); // The current implementation always returns Some
     let msg = info.message().unwrap(); // The current implementation always returns Some
-    let file_line_col = (loc.file(), loc.line(), loc.column());
-    rust_panic_with_hook(
-        &mut PanicPayload::new(msg),
-        info.message(),
-        &file_line_col);
+    rust_panic_with_hook(&mut PanicPayload::new(msg), info.message(), loc);
 }
 
 /// This is the entry point of panicking for the non-format-string variants of
@@ -389,7 +397,13 @@ pub fn begin_panic_handler(info: &PanicInfo<'_>) -> ! {
 // bloat at the call sites as much as possible
 #[cfg_attr(not(feature="panic_immediate_abort"),inline(never))]
 #[cold]
-pub fn begin_panic<M: Any + Send>(msg: M, file_line_col: &(&'static str, u32, u32)) -> ! {
+pub fn begin_panic<M: Any + Send>(
+    msg: M,
+    #[cfg(bootstrap)]
+    &(file, line, col): &(&str, u32, u32),
+    #[cfg(not(bootstrap))]
+    location: &Location<'_>,
+) -> ! {
     if cfg!(feature = "panic_immediate_abort") {
         unsafe { intrinsics::abort() }
     }
@@ -401,7 +415,15 @@ pub fn begin_panic<M: Any + Send>(msg: M, file_line_col: &(&'static str, u32, u3
     // be performed in the parent of this thread instead of the thread that's
     // panicking.
 
-    rust_panic_with_hook(&mut PanicPayload::new(msg), None, file_line_col);
+    #[cfg(bootstrap)]
+    {
+        let location = Location::internal_constructor(file, line, col);
+        rust_panic_with_hook(&mut PanicPayload::new(msg), None, &location);
+    }
+    #[cfg(not(bootstrap))]
+    {
+        rust_panic_with_hook(&mut PanicPayload::new(msg), None, location);
+    }
 
     struct PanicPayload<A> {
         inner: Option<A>,
@@ -436,11 +458,11 @@ pub fn begin_panic<M: Any + Send>(msg: M, file_line_col: &(&'static str, u32, u3
 /// Executes the primary logic for a panic, including checking for recursive
 /// panics, panic hooks, and finally dispatching to the panic runtime to either
 /// abort or unwind.
-fn rust_panic_with_hook(payload: &mut dyn BoxMeUp,
-                        message: Option<&fmt::Arguments<'_>>,
-                        file_line_col: &(&str, u32, u32)) -> ! {
-    let (file, line, col) = *file_line_col;
-
+fn rust_panic_with_hook(
+    payload: &mut dyn BoxMeUp,
+    message: Option<&fmt::Arguments<'_>>,
+    location: &Location<'_>,
+) -> ! {
     let panics = update_panic_count(1);
 
     // If this is the third nested call (e.g., panics == 2, this is 0-indexed),
@@ -455,8 +477,7 @@ fn rust_panic_with_hook(payload: &mut dyn BoxMeUp,
     }
 
     unsafe {
-        let location = Location::internal_constructor(file, line, col);
-        let mut info = PanicInfo::internal_constructor(message, &location);
+        let mut info = PanicInfo::internal_constructor(message, location);
         HOOK_LOCK.read();
         match HOOK {
             // Some platforms (like wasm) know that printing to stderr won't ever actually
