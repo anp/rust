@@ -342,6 +342,7 @@ impl<T> Option<T> {
     /// ```
     #[inline]
     #[stable(feature = "rust1", since = "1.0.0")]
+    #[cfg_attr(not(bootstrap), track_caller)]
     pub fn expect(self, msg: &str) -> T {
         match self {
             Some(val) => val,
@@ -375,6 +376,7 @@ impl<T> Option<T> {
     /// ```
     #[inline]
     #[stable(feature = "rust1", since = "1.0.0")]
+    #[cfg_attr(not(bootstrap), track_caller)]
     pub fn unwrap(self) -> T {
         match self {
             Some(val) => val,
@@ -1184,6 +1186,7 @@ impl<T, E> Option<Result<T, E>> {
 // This is a separate function to reduce the code size of .expect() itself.
 #[inline(never)]
 #[cold]
+#[cfg_attr(not(bootstrap), track_caller)]
 fn expect_failed(msg: &str) -> ! {
     panic!("{}", msg)
 }
@@ -1191,6 +1194,7 @@ fn expect_failed(msg: &str) -> ! {
 // This is a separate function to reduce the code size of .expect_none() itself.
 #[inline(never)]
 #[cold]
+#[cfg_attr(not(bootstrap), track_caller)]
 fn expect_none_failed(msg: &str, value: &dyn fmt::Debug) -> ! {
     panic!("{}: {:?}", msg, value)
 }

@@ -951,6 +951,7 @@ impl<T, E: fmt::Debug> Result<T, E> {
     /// ```
     #[inline]
     #[stable(feature = "rust1", since = "1.0.0")]
+    #[cfg_attr(not(bootstrap), track_caller)]
     pub fn unwrap(self) -> T {
         match self {
             Ok(t) => t,
@@ -978,6 +979,7 @@ impl<T, E: fmt::Debug> Result<T, E> {
     /// ```
     #[inline]
     #[stable(feature = "result_expect", since = "1.4.0")]
+    #[cfg_attr(not(bootstrap), track_caller)]
     pub fn expect(self, msg: &str) -> T {
         match self {
             Ok(t) => t,
@@ -1011,6 +1013,7 @@ impl<T: fmt::Debug, E> Result<T, E> {
     /// ```
     #[inline]
     #[stable(feature = "rust1", since = "1.0.0")]
+    #[cfg_attr(not(bootstrap), track_caller)]
     pub fn unwrap_err(self) -> E {
         match self {
             Ok(t) => unwrap_failed("called `Result::unwrap_err()` on an `Ok` value", &t),
@@ -1038,6 +1041,7 @@ impl<T: fmt::Debug, E> Result<T, E> {
     /// ```
     #[inline]
     #[stable(feature = "result_expect_err", since = "1.17.0")]
+    #[cfg_attr(not(bootstrap), track_caller)]
     pub fn expect_err(self, msg: &str) -> E {
         match self {
             Ok(t) => unwrap_failed(msg, &t),
@@ -1185,6 +1189,7 @@ impl<T, E> Result<Option<T>, E> {
 // This is a separate function to reduce the code size of the methods
 #[inline(never)]
 #[cold]
+#[cfg_attr(not(bootstrap), track_caller)]
 fn unwrap_failed(msg: &str, error: &dyn fmt::Debug) -> ! {
     panic!("{}: {:?}", msg, error)
 }
